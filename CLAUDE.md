@@ -49,6 +49,6 @@ You MUST delegate tasks to the appropriate agent based on their expertise:
 1. **Phase 1 (Design):** `@backend-engineer` and `@frontend-engineer` create `/docs/db_schema.md` and `/docs/api_contracts.md`. **Stop for User Approval.**
 2. **Phase 2 (Infra):** Docker scaffolding and folder structure.
 3. **Phase 3 (Backend Core):** FastAPI, DB Models, Redis Rate Limiter.
-4. **Phase 4 (AI Engine):** Datapizza AI integration and Agent Personas.
+4. **Phase 4 (AI Engine):** Datapizza AI integration and Agent Personas. (https://docs.datapizza.ai/latest/)
 5. **Phase 5 (Frontend):** Chat UI, Hall of Shame, and API integration.
 6. **Phase 6 (Verification):** `@qa-tester` runs full suite, `@security-auditor` performs final sign-off.

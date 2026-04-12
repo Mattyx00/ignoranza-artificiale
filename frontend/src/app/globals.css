@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-bricolage: 'Bricolage Grotesque';
+  --font-dm-sans: 'DM Sans';
+  --font-jetbrains: 'JetBrains Mono';
+  --font-playfair: 'Playfair Display';
+}

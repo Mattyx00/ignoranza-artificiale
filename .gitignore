@@ -19,3 +19,14 @@ build/
 
 # OS
 .DS_Store
+
+# Env files (explicit paths)
+.env.local
+backend/.env
+frontend/.env.local
+
+# Python tooling
+.uv/
+
+# Docker volumes
+postgres_data/
