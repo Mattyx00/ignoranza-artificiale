@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# Claude Code - skills (managed via skills-lock.json)
+.agents/
+.claude/skills/
+
+# Claude Code - local settings
+.claude/settings.local.json
+
+# Build outputs
+.next/
+dist/
+build/
+
+# OS
+.DS_Store
