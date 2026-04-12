@@ -11,9 +11,9 @@
 
 The UI aesthetic is **meme-corporate**: sterile, over-engineered, and self-serious — exactly like a Fortune 500 internal tool — while the content is deliberately absurd. Every design decision should maximize this ironic contrast.
 
-- Typography: system-ui sans-serif stack, tight letter-spacing on headings, all-caps labels.
-- Color palette: near-monochrome base (white/zinc-950) with one loud accent per agent (injected via CSS custom property `--agent-accent`).
-- Motion: minimal. Skeleton loaders, not spinners. One subtle fade-in transition (150 ms). No bounce animations.
+- Typography: distinctive display font (Bricolage Grotesque) paired with a clean body font (DM Sans) and a serif accent (Playfair Display) for ironic contrast moments. Never generic stacks like Inter/system-ui.
+- Color palette: near-monochrome base (zinc-950) with per-agent accent colors AND a system-wide brand red (`--accent-system: #dc2626`) that evokes bureaucratic stamps and fatal errors.
+- Motion: austere but precise. Animations must look like they were documented in an internal changelog ("v2.3.1 — transition optimized"). No bounce. No spring physics. One well-orchestrated staggered reveal per session-entry point.
 - Copy tone: formal Italian bureaucratic language. "La sua richiesta è stata presa in carico." Never casual.
 
 ---
@@ -50,7 +50,6 @@ src/
       AppShell.tsx              # Persistent navbar + optional sidebar wrapper
       Navbar.tsx
     gateway/
-      ApiKeyGate.tsx            # Full-screen key input modal/overlay
       MasterAgentGreeting.tsx   # Corporate Manager welcome message
     chat/
       ChatWindow.tsx            # Message list + input bar container
@@ -78,7 +77,6 @@ src/
   hooks/
     useChat.ts
     useAgents.ts
-    useApiKey.ts
   lib/
     api.ts                      # Typed fetch wrappers for all backend endpoints
     constants.ts                # API base URL, localStorage keys, etc.
@@ -97,11 +95,13 @@ Defined in `src/types/index.ts`. All component props and hook return values refe
 // ─── Agent ───────────────────────────────────────────────────────────────────
 
 export interface Agent {
-  id: string;
+  slug: string;              // URL-safe identifier — primary key, matches API field
   name: string;
+  vibeLabel: string;         // Short Italian vibe descriptor
   persona: string;           // Short Italian description shown in the UI
-  accentColor: string;       // Hex or Tailwind color token, e.g. "#ef4444"
-  contributorHandle: string; // GitHub username, e.g. "matteosacco"
+  accentColor: string;       // Hex color, e.g. "#4A90D9"
+  contributorHandle: string; // GitHub username, e.g. "matteo-sacco" (= contributor_github)
+  contributorName: string;   // Display name, e.g. "Matteo Sacco" (= contributor_name)
   isEnabled: boolean;        // Mutable in client state only; not persisted server-side
 }
 
@@ -110,18 +110,18 @@ export interface Agent {
 export type MessageRole = "user" | "agent" | "system";
 
 export interface ChatMessage {
-  id: string;                // client-generated uuid
+  id: string;                  // client-generated uuid
   role: MessageRole;
   content: string;
-  agentId?: string;          // populated when role === "agent"
-  agentName?: string;        // denormalized for display without extra lookup
-  timestamp: number;         // unix ms
-  isStreaming?: boolean;     // true while SSE chunk stream is in progress
+  agentSlug?: string;          // populated when role === "agent" (matches API agent_slug)
+  agentName?: string;          // denormalized for display without extra lookup
+  timestamp: number;           // unix ms
+  isStreaming?: boolean;       // true while SSE chunk stream is in progress
 }
 
 export interface ChatSession {
   messages: ChatMessage[];
-  activeAgentId: string | null;
+  activeAgentSlug: string | null;
 }
 
 // ─── Hall of Shame ───────────────────────────────────────────────────────────
@@ -130,30 +130,38 @@ export interface ShameEntry {
   id: string;
   slug: string;
   title: string;
-  createdAt: string;         // ISO 8601
-  upvotes: number;
-  agentIds: string[];        // agents that participated
-  excerpt: string;           // first ~200 chars of the conversation
+  createdAt: string;           // ISO 8601
+  upvoteCount: number;         // matches API field upvote_count
+  agentSlugs: string[];        // agents that participated (matches API field agent_slugs)
+  preview: string;             // first ~200 chars of the first agent message (matches API field preview)
+  isFeatured: boolean;         // editorial pin — featured card gets col-span-2 in gallery grid
 }
 
 export interface ShameTranscriptEntry {
   slug: string;
   title: string;
   createdAt: string;
-  upvotes: number;
+  upvoteCount: number;
+  isFeatured: boolean;
   messages: ChatMessage[];
 }
 
 // ─── API responses ───────────────────────────────────────────────────────────
 
 export interface ApiError {
-  detail: string;
-  code?: string;
+  detail: {
+    code: string;
+    message: string;
+    retry_after_seconds?: number | null;
+  };
 }
+
+// NOTE: Questa interfaccia rispecchia esattamente il `ErrorDetail` Pydantic schema del backend.
+// Il campo `detail` è sempre un oggetto — mai una stringa.
 
 export interface UpvoteResponse {
   slug: string;
-  upvotes: number;
+  upvoteCount: number;         // matches API field upvote_count
 }
 
 export interface SubmitShameResponse {
@@ -166,30 +174,7 @@ export interface SubmitShameResponse {
 
 ## 4. Component Inventory
 
-### 4.1 `ApiKeyGate`
-
-**File:** `src/components/gateway/ApiKeyGate.tsx`  
-**Type:** Client Component (`"use client"`)
-
-**Props:**
-```typescript
-interface ApiKeyGateProps {
-  onKeyConfirmed: (key: string) => void;
-}
-```
-
-**Responsibilities:**
-- Renders a full-viewport overlay if no API key is found in localStorage.
-- Contains a single `<Input>` for the OpenRouter API key + a confirm `<Button>`.
-- On submit: validates key is non-empty, stores it via `useApiKey`, calls `onKeyConfirmed`.
-- Copy (Italian): "Inserisca la sua chiave API OpenRouter per procedere. La chiave verrà conservata localmente sul suo dispositivo."
-- Does NOT call any backend endpoint. The key is passed as a header by `useChat`.
-
-**API calls:** None.
-
----
-
-### 4.2 `MasterAgentGreeting`
+### 4.1 `MasterAgentGreeting`
 
 **File:** `src/components/gateway/MasterAgentGreeting.tsx`  
 **Type:** Client Component
@@ -205,10 +190,12 @@ interface MasterAgentGreetingProps {
 **Responsibilities:**
 - Displays the Corporate Manager's opening line after key confirmation.
 - Shows `<StreamingIndicator>` while `isLoading` is true.
-- Triggers a single non-interactive SSE call to `GET /api/v1/agents/greeting` on mount (via `useChat` or a one-shot fetch).
+- Triggers a single non-interactive SSE call to `POST /api/v1/chat/stream` on mount with a fixed bootstrap message and a designated "master agent" slug, producing the opening greeting.
 - Acts as transition into the `/chat` page (renders a "Inizia" `<Button>` once greeting completes).
 
-**API calls:** `GET /api/v1/agents/greeting`
+> **Note for Phase 3/4:** The `GET /api/v1/agents/greeting` endpoint referenced in an earlier draft does **not exist** in the API contracts. The greeting must be implemented by calling `POST /api/v1/chat/stream` with a fixed opening prompt (e.g. `"Presentati all'utente come Corporate Manager."`) and the master agent slug.
+
+**API calls:** `POST /api/v1/chat/stream`
 
 ---
 
@@ -254,7 +241,7 @@ interface MessageBubbleProps {
 - Renders user messages right-aligned, agent messages left-aligned.
 - For agent messages: renders `<AgentBadge>` above the bubble, with `accentColor` applied as a left-border and badge background.
 - Renders `<StreamingIndicator>` inline when `message.isStreaming === true`.
-- Sanitizes `message.content` before rendering (no raw HTML injection).
+- Sanitizes `message.content` before rendering (no raw HTML injection). Usare la libreria `isomorphic-dompurify` (SSR-compatible) per sanitizzare il contenuto prima del rendering. NON usare `dangerouslySetInnerHTML` direttamente senza sanitizzazione preventiva.
 
 **API calls:** None.
 
@@ -315,7 +302,8 @@ interface AgentCardProps {
 
 **Responsibilities:**
 - Displays agent name, persona description, and accent color swatch.
-- Displays contributor GitHub handle as a link: `https://github.com/{contributorHandle}`.
+- The agent's accent color manifests as `border-left: 3px solid var(--agent-accent)` on the card's left edge — not as a background fill. When disabled, transitions to `border-left: 3px solid var(--border)` in 150ms.
+- Displays contributor name as the link text and GitHub handle in `font-mono` (not sans-serif) below it: `<a href="https://github.com/{contributorHandle}">{contributorName}</a>` with the handle rendered separately in muted mono. This reinforces the "technical identifier" tone.
 - Renders a `<Toggle>` for enabling/disabling the agent.
 - Disabled agents are visually desaturated (opacity-40, grayscale filter).
 
@@ -377,9 +365,12 @@ interface ShameCardProps {
 ```
 
 **Responsibilities:**
-- Renders title, date (formatted in Italian locale), upvote count, and agent badge(s).
+- Renders title (in `font-serif` / Playfair Display for ironic gravitas), date (formatted in Italian locale in `font-mono`), upvote count, and agent badge(s).
 - Wraps in `<Link href={/vergogna/${entry.slug}}>`.
-- Shows truncated `entry.excerpt`.
+- Shows truncated `entry.preview`.
+- If `entry.isFeatured` is true, the card takes `col-span-2` in the gallery grid and renders an extended preview. This is the single "grid-breaking element" that disrupts the regular grid rhythm without requiring a complex asymmetric layout.
+
+> **Note:** `isFeatured` must be added to the `ShameEntry` interface and propagated from the `ShameEntryCard` API response (see backend contract update request below).
 
 ---
 
@@ -420,46 +411,23 @@ interface StreamingIndicatorProps {
 ```
 
 **Responsibilities:**
-- Three-dot pulsing animation (CSS `animate-pulse` staggered).
-- Optionally shows "NomeAgente sta elaborando..." below the dots.
+- Three-dot animation. **Do NOT use `animate-pulse`** — its sinusoidal opacity easing looks like a consumer loading spinner. Use a `@keyframes blink` that steps between `opacity: 1` and `opacity: 0.15` with `animation-timing-function: step-end`, `duration: 800ms`. The three dots have staggered `animation-delay: 0ms / 120ms / 240ms`. The result is a sequential terminal-style cursor — it reads as "serial processing", not consumer UX.
+- Optionally shows `"{NomeAgente} sta formulando una risposta inadeguata..."` below the dots, rendered in `font-mono` to reinforce the "system log" tone.
 - Color inherits from `accentColor` prop.
 
 ---
 
 ## 5. Custom Hooks
 
-### 5.1 `useApiKey`
-
-**File:** `src/hooks/useApiKey.ts`
-
-```typescript
-interface UseApiKeyReturn {
-  apiKey: string | null;
-  setApiKey: (key: string) => void;
-  clearApiKey: () => void;
-  hasKey: boolean;
-}
-
-export function useApiKey(): UseApiKeyReturn;
-```
-
-**Behavior:**
-- Reads from `localStorage.getItem("openrouter_api_key")` on mount (inside `useEffect` to avoid SSR mismatch).
-- `setApiKey` writes to localStorage and updates React state synchronously.
-- `clearApiKey` removes the key from both localStorage and state.
-- `hasKey` is a derived boolean: `apiKey !== null && apiKey.length > 0`.
-
----
-
-### 5.2 `useAgents`
+### 5.1 `useAgents`
 
 **File:** `src/hooks/useAgents.ts`
 
 ```typescript
 interface UseAgentsReturn {
   agents: Agent[];
-  enabledAgentIds: string[];
-  toggleAgent: (agentId: string, enabled: boolean) => void;
+  enabledAgentSlugs: string[];
+  toggleAgent: (agentSlug: string, enabled: boolean) => void;
   isLoading: boolean;
   error: string | null;
 }
@@ -470,7 +438,7 @@ export function useAgents(): UseAgentsReturn;
 **Behavior:**
 - On mount: fetches `GET /api/v1/agents` once. Populates `agents` with `isEnabled: true` for all by default.
 - `toggleAgent` performs a local state mutation only — the enabled/disabled state is frontend-only and is passed to `useChat` to influence routing.
-- `enabledAgentIds` is derived: `agents.filter(a => a.isEnabled).map(a => a.id)`.
+- `enabledAgentSlugs` is derived: `agents.filter(a => a.isEnabled).map(a => a.slug)`.
 
 ---
 
@@ -480,13 +448,13 @@ export function useAgents(): UseAgentsReturn;
 
 ```typescript
 interface UseChatOptions {
-  enabledAgentIds: string[];
+  enabledAgentSlugs: string[];
 }
 
 interface UseChatReturn {
   messages: ChatMessage[];
   isStreaming: boolean;
-  activeAgentId: string | null;
+  activeAgentSlug: string | null;
   activeAgentName: string | null;
   error: string | null;
   sendMessage: (text: string) => Promise<void>;
@@ -518,25 +486,24 @@ export function useChat(options: UseChatOptions): UseChatReturn;
      ```json
      {
        "message": "user text",
-       "history": [ ...previous messages ],
-       "enabled_agent_ids": ["agent-1", "agent-2"]
+       "conversation_history": [ ...previous messages ],
+       "agent_slug": null
      }
      ```
    - Request headers:
      ```
      Content-Type: application/json
-     X-OpenRouter-Key: <value from useApiKey>
+     X-Session-ID: <UUID from localStorage>
      ```
 5. Reads the stream with `response.body.getReader()` and `TextDecoder`.
 6. Parses each SSE line:
-   - `event: agent_selected` + `data: { "agent_id": "...", "agent_name": "..." }` → sets `activeAgentId` / `activeAgentName` and updates the placeholder message's `agentId`/`agentName`.
-   - `event: chunk` + `data: { "content": "..." }` → appends content to the placeholder message.
+   - `event: agent_selected` + `data: { "agent": { "slug": "...", "name": "...", ... } }` → sets `activeAgentSlug` / `activeAgentName` and updates the placeholder message's `agentSlug`/`agentName`.
+   - `event: token` + `data: { "delta": "..." }` → appends `delta` content to the placeholder message.
    - `event: done` → sets `isStreaming: false`, marks placeholder `isStreaming: false`.
    - `event: error` + `data: { "detail": "..." }` → sets `error`, sets `isStreaming: false`.
-7. If the fetch itself fails (network error, 4xx/5xx before stream starts): sets `error`, removes placeholder message, sets `isStreaming: false`.
 
-**API Key handling:**
-- `useApiKey` is called internally. If `hasKey` is false when `sendMessage` is invoked, the function throws/returns early and sets `error` to `"Chiave API non configurata. Ricaricare la pagina."`.
+   > **ATTENZIONE:** il nome dell'evento è `token` (non `chunk`) e il campo del testo è `delta` (non `content`). Usare il naming errato causerà la rottura dello streaming senza errori visibili.
+7. If the fetch itself fails (network error, 4xx/5xx before stream starts): sets `error`, removes placeholder message, sets `isStreaming: false`.
 
 ---
 
@@ -550,7 +517,6 @@ The application uses no Redux, no Zustand, no Jotai. State is either component-l
 
 | State | Owner | Mechanism |
 |---|---|---|
-| OpenRouter API key | `useApiKey` hook | `localStorage` + `useState` |
 | Agents list + enabled flags | `useAgents` hook, owned by `/chat/page.tsx` | `useState` |
 | Chat message history | `useChat` hook, owned by `/chat/page.tsx` | `useState` |
 | Active streaming agent | `useChat` hook (internal) | `useState` |
@@ -560,15 +526,7 @@ The application uses no Redux, no Zustand, no Jotai. State is either component-l
 
 ### 6.3 Context (if needed)
 
-A single `AppContext` may be introduced **only** if prop-drilling the API key or agent list becomes a problem across more than two component layers. It is not required at spec time.
-
-```typescript
-// src/app/providers.tsx (optional, to be created only if needed)
-interface AppContextValue {
-  apiKey: string | null;
-  hasKey: boolean;
-}
-```
+A single `AppContext` may be introduced **only** if prop-drilling the agent list becomes a problem across more than two component layers. It is not required at spec time.
 
 ---
 
@@ -603,7 +561,7 @@ SSE streaming is handled directly in `useChat` via `fetch` + `ReadableStream` an
 
 ```typescript
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-export const LOCALSTORAGE_API_KEY = "openrouter_api_key";
+export const LOCALSTORAGE_SESSION_ID = "session_id";
 export const LOCALSTORAGE_VOTED_PREFIX = "voted:"; // + slug
 export const MIN_MESSAGES_FOR_SHAME = 4;
 ```
@@ -618,11 +576,13 @@ export const MIN_MESSAGES_FOR_SHAME = 4;
 **Type:** Server Component shell with Client subtree
 
 **Layout:**
-- Full-viewport centered layout.
-- Logo/wordmark top-left: "IGNORANZA ARTIFICIALE™" in tight monospace caps.
-- Hero area: "Il sistema è operativo. Siamo spiacenti." in large serif (ironic contrast).
-- `<ApiKeyGate>` renders as an overlay when key is absent; otherwise renders `<MasterAgentGreeting>`.
-- A single "Accedi alla piattaforma" button navigates to `/chat` after greeting is complete.
+- Full-viewport. NOT vertically centered — deliberate off-center positioning evokes a misconfigured internal tool.
+- Logo/wordmark top-left: "IGNORANZA ARTIFICIALE™" in `font-mono` tight uppercase caps.
+- Hero tagline "Il sistema è operativo. Siamo spiacenti." positioned at `top: 35vh` (above optical center), rendered in `font-serif` (Playfair Display) for ironic gravitas contrast with the mono UI.
+- "Accedi alla piattaforma" button positioned at `top: 55vh`.
+- Renders `<MasterAgentGreeting>` directly on load — no key gate.
+
+**Motion on page load:** AgentCard-style staggered reveal applies only to the `<MasterAgentGreeting>` component words — not the whole page.
 
 **Data fetched:** None at server level. All client-driven.
 
@@ -634,13 +594,11 @@ export const MIN_MESSAGES_FOR_SHAME = 4;
 **Type:** Client Component (`"use client"`)
 
 **Layout:** Two-column:
-- Left sidebar (280 px): `<AgentRoster>` with the list of agents + toggles.
-- Main area: `<ChatWindow>` with message list, input bar, and shame button.
+- Left sidebar (`width: 22vw; min-width: 260px; max-width: 320px`): `<AgentRoster>` with the list of agents + toggles. The sidebar has `border-right: 1px solid var(--border)` with no rounding — sharp industrial edge. The non-standard `vw`-based width intentionally avoids standard 8px grid alignment.
+- Main area: asymmetric padding (`padding-left: 2rem; padding-right: 4rem`) so chat content is not centered — subtle but perceptible.
 - Top bar: active agent indicator (`<AgentBadge>` + "In elaborazione...") visible only while streaming.
 
-**Hooks used:** `useChat`, `useAgents`, `useApiKey`
-
-**Guard:** If `!hasKey`, redirect to `/` (use `next/navigation` `redirect()`).
+**Hooks used:** `useChat`, `useAgents`
 
 ---
 
@@ -663,7 +621,19 @@ export const MIN_MESSAGES_FOR_SHAME = 4;
 **File:** `src/app/vergogna/[slug]/page.tsx`  
 **Type:** Server Component with one Client island (`<UpvoteButton>`)
 
-**Data fetching:** `fetchShameTranscript(params.slug)` in the server component. Returns 404 page if slug not found (use `notFound()` from `next/navigation`).
+**Data fetching:** In Next.js 15+, `params` is a `Promise` and must be awaited before use:
+```tsx
+// /vergogna/[slug]/page.tsx
+type Props = { params: Promise<{ slug: string }> }
+
+export default async function Page({ params }: Props) {
+  const { slug } = await params
+  const entry = await fetchShameTranscript(slug)
+  if (!entry) notFound()
+  // ...
+}
+```
+Returns 404 page if slug not found (use `notFound()` from `next/navigation`). Same pattern applies to `generateMetadata`.
 
 **Layout:**
 - Transcript title + date + agent badges across the top.
@@ -686,7 +656,8 @@ export const MIN_MESSAGES_FOR_SHAME = 4;
 | `--border` | `#27272a` (zinc-800) | All borders |
 | `--text-primary` | `#fafafa` (zinc-50) | Body copy |
 | `--text-muted` | `#71717a` (zinc-500) | Timestamps, labels |
-| `--accent-default` | `#ffffff` | Default CTA button, links |
+| `--accent-system` | `#dc2626` (red-600) | System brand color: primary CTAs, focus rings, logo mark. Evokes bureaucratic stamps, rejection notices, fatal errors. |
+| `--accent-system-subtle` | `#450a0a` (red-950) | Hover background on danger buttons, error borders, "FEATURED" badge in gallery. |
 | `--agent-accent` | Injected per agent | Agent badge bg, bubble border-left |
 
 Agent accent colors (examples, finalized by backend agent spec):
@@ -698,13 +669,35 @@ Agent accent colors (examples, finalized by backend agent spec):
 
 ### 9.2 Typography
 
+> **Critical:** Do NOT use Inter, system-ui, Roboto, or Arial. These are "AI slop" aesthetics explicitly forbidden by the `frontend-design` skill. The project needs fonts that look expensive and slightly wrong — like a Fortune 500 tool that cost €2M to build.
+
 ```
-font-family: "Inter var", ui-sans-serif, system-ui, sans-serif
-font-mono: "JetBrains Mono", ui-monospace, monospace   (used for API key input, slugs)
+font-display:  "Bricolage Grotesque", sans-serif
+               → Headings, UI labels, navigation. Variable font, geometric-quirky,
+                 evokes an early-2000s internal tool still running in production.
+                 Available on Google Fonts.
+
+font-body:     "DM Sans", sans-serif
+               → Chat messages, body copy, form fields. Readable and neutral
+                 without being boring. Available on Google Fonts.
+
+font-mono:     "JetBrains Mono", ui-monospace, monospace
+               → API key input, slugs, metadata, GitHub handles, StreamingIndicator text.
+                 Unchanged.
+
+font-serif:    "Playfair Display", serif
+               → Used exclusively for: landing page tagline, ShameCard titles,
+                 Hall of Shame page subtitle. The serif in an otherwise rigidly
+                 sans context creates the required ironic contrast — "bureaucratic
+                 gravitas meets corporate absurdity".
+                 Available on Google Fonts.
 ```
 
-All headings: `font-weight: 600`, `letter-spacing: -0.02em`.  
-UI labels and badges: `text-transform: uppercase`, `letter-spacing: 0.08em`, `font-size: 0.625rem` (10 px).
+Load via `next/font/google` with `display: 'swap'` and appropriate subset preloading.
+
+All headings (Bricolage Grotesque): `font-weight: 600`, `letter-spacing: -0.02em`.  
+UI labels and badges: `text-transform: uppercase`, `letter-spacing: 0.08em`, `font-size: 0.625rem` (10 px).  
+GitHub handles and technical metadata: always `font-mono`.
 
 ### 9.3 Italian Copy Tone
 
@@ -720,6 +713,12 @@ Copy must be bureaucratic, impersonal, and passive-voice wherever possible. Exam
 | Gallery empty | "Nessuna disfunzione catalogata. Per ora." |
 | Error generic | "Si è verificato un errore imprevisto. Il sistema è costernato." |
 | Chat input placeholder | "Inserisca la sua richiesta. Verrà gestita con la massima incompetenza." |
+| Rate limit (server key) | "La sua frequenza di utilizzo supera i parametri consentiti. Si prega di fornire una chiave API personale o di attendere il ripristino della quota." |
+| Agent disabled (sidebar) | "Agente temporaneamente sospeso per motivi amministrativi." |
+
+**`SubmitToShameButton` success state:** On success, the button does not merely change its text — it transforms into a "receipt" element: `background: var(--surface)`, `border: 1px solid var(--border)`, two lines in `font-mono` (session title + public URL), plus a "Copia URL" button on the right. Appears with a `200ms translateY` transition. Simulates a receipt printed by a bureaucratic system.
+
+**Hall of Shame page header typography:** Two-line layout with inverted hierarchy — line 1: "HALL OF SHAME" in `font-mono` uppercase `text-xs` `letter-spacing: 0.15em` color `--text-muted`; line 2: "Archivio Pubblico delle Disfunzioni Artificiali" in `font-serif` `text-2xl` `font-weight: 400`. The small technical label above the large serif subtitle is unexpected and reinforces the irony.
 
 ### 9.4 Responsiveness
 
@@ -739,17 +738,80 @@ Copy must be bureaucratic, impersonal, and passive-voice wherever possible. Exam
 
 ## 10. Environment Variables (Frontend)
 
+> **Important:** `NEXT_PUBLIC_*` variables are baked into the JS bundle at **build time**. They cannot be changed at runtime. The browser cannot resolve Docker-internal hostnames like `backend` — only the Next.js Node.js process (Server Components, Route Handlers) can use those names.
+
+Two separate variables are therefore required:
+
+| Variable | Used by | Value (dev) | Value (Docker prod) |
+|---|---|---|---|
+| `API_INTERNAL_URL` | Server Components, Route Handlers (server-side only) | `http://localhost:8000` | `http://backend:8000` |
+| `NEXT_PUBLIC_API_URL` | Client Components, hooks (`useChat`, `useApiKey`, etc.) | `http://localhost:8000` | `http://localhost:8000` or public domain |
+
 Defined in `.env.local` (not committed):
 
 ```
+API_INTERNAL_URL=http://localhost:8000
 NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
-In production (Docker):
+In production (Docker), set via `docker-compose.yml` environment:
 
 ```
-NEXT_PUBLIC_API_URL=http://backend:8000
+API_INTERNAL_URL=http://backend:8000
+NEXT_PUBLIC_API_URL=http://localhost:8000   # or the public-facing domain
 ```
+
+> Note: `NEXT_PUBLIC_API_URL` must be the URL reachable by the **user's browser**, not the Docker network.
+
+The `next.config.ts` must also include `output: 'standalone'` for Docker:
+
+```ts
+// next.config.ts
+const nextConfig = {
+  output: 'standalone',
+}
+export default nextConfig
+```
+
+---
+
+## 10.1 Security Headers
+
+`next.config.ts` deve includere una funzione `headers()` che applica HTTP security headers a tutte le route (`source: '/(.*)'`).
+
+**Headers obbligatori:**
+
+| Header | Valore |
+|---|---|
+| `X-Content-Type-Options` | `nosniff` |
+| `X-Frame-Options` | `DENY` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+| `Content-Security-Policy` | Vedi nota sotto |
+
+**Content-Security-Policy:** La CSP deve essere definita come requisito di Phase 5, quando i domini effettivi di deployment sono noti. Deve essere una policy restrittiva che consenta esclusivamente:
+- Google Fonts per il caricamento dei font (`fonts.googleapis.com`, `fonts.gstatic.com`).
+- Il proprio backend per le chiamate API (valore di `NEXT_PUBLIC_API_URL`).
+
+La CSP **NON deve** contenere `unsafe-inline` o `unsafe-eval`.
+
+**Struttura di riferimento in `next.config.ts`:**
+
+```ts
+async headers() {
+  return [
+    {
+      source: '/(.*)',
+      headers: [
+        { key: 'X-Content-Type-Options', value: 'nosniff' },
+        { key: 'X-Frame-Options', value: 'DENY' },
+        { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+      ],
+    },
+  ]
+}
+```
+
+> **Nota:** La voce `Content-Security-Policy` viene aggiunta all'array `headers` in Phase 5, una volta stabiliti i domini definitivi. Non definire una CSP permissiva come placeholder — è preferibile assente che errata.
 
 ---
 
@@ -766,6 +828,7 @@ NEXT_PUBLIC_API_URL=http://backend:8000
 | `@radix-ui/react-dialog` | Accessible modal primitive (for `<Modal>`) |
 | `lucide-react` | Icon set (arrows, copy, loader, etc.) |
 | `date-fns` | Italian date formatting (`it` locale) |
+| `isomorphic-dompurify` | XSS prevention — sanitize LLM-generated HTML content before rendering |
 
 No UI framework (MUI, Chakra, shadcn). All components are hand-written with Tailwind.
 

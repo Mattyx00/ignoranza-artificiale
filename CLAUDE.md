@@ -14,10 +14,9 @@ You MUST delegate tasks to the appropriate agent based on their expertise:
 
 ## 🎯 Product Vision & Core Features
 1. **Agent Gateway (Master Agent):** A corporate-style landing page. The Master Agent routes prompts to the most inappropriate specialist.
-2. **Hybrid API Key Management (CRITICAL):**
-   - **Client-Side:** Check header `X-OpenRouter-Key` (from LocalStorage).
-   - **Server-Side Fallback:** If header is missing, use server-side `OPENROUTER_API_KEY` from `.env`.
-   - **Rate Limiting:** Implement strict Redis-based rate limiting. Be significantly more aggressive/restrictive when the Server-Side Fallback is used.
+2. **API Key Management:**
+   - **Server-Side Only:** The `OPENROUTER_API_KEY` lives exclusively in the backend `.env`. The frontend does NOT handle, store, or transmit any API key.
+   - **Rate Limiting:** Implement Redis-based rate limiting. Single threshold — no BYOK distinction.
 3. **The Chat:** Real-time streaming with visual cues for each agent's "vibe" and color.
 4. **"Hall of Shame":** Public gallery for funny chats. Save transcripts to Postgres and generate unique public slugs/URLs.
 5. **Contributor Attribution:** Display the GitHub handle of the agent's author (from agent metadata) in the UI cards.
@@ -49,7 +48,7 @@ You MUST delegate tasks to the appropriate agent based on their expertise:
 ## 🗺️ Execution Plan (Spec-First)
 1. **Phase 1 (Design):** `@backend-engineer` and `@frontend-engineer` create `/docs/db_schema.md` and `/docs/api_contracts.md`. **Stop for User Approval.**
 2. **Phase 2 (Infra):** Docker scaffolding and folder structure.
-3. **Phase 3 (Backend Core):** FastAPI, DB Models, Redis Rate Limiter (Hybrid Key Logic).
+3. **Phase 3 (Backend Core):** FastAPI, DB Models, Redis Rate Limiter.
 4. **Phase 4 (AI Engine):** Datapizza AI integration and Agent Personas.
 5. **Phase 5 (Frontend):** Chat UI, Hall of Shame, and API integration.
 6. **Phase 6 (Verification):** `@qa-tester` runs full suite, `@security-auditor` performs final sign-off.
