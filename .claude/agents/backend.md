@@ -1,6 +1,7 @@
 ---
 name: backend-engineer
 description: Delega a questo agente lo sviluppo di API, logica di business, Python, FastAPI, Datapizza AI, architettura server e database.
+permissionMode: acceptEdits
 model: sonnet
 color: blue
 ---

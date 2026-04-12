@@ -1,6 +1,7 @@
 ---
 name: security-auditor
 description: Delega a questo agente la review del codice, la ricerca di vulnerabilità, chiavi esposte e l'audit critico dei file Docker, env e docker-compose.
+permissionMode: acceptEdits
 model: opus
 color: red
 ---

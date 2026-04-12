@@ -1,6 +1,7 @@
 ---
 name: qa-tester
 description: Delega a questo agente la scrittura e l'esecuzione di unit test automatizzati e la verifica dei log di errore.
+permissionMode: bypassPermissions
 model: haiku
 color: green
 ---

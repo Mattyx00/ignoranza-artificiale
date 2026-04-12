@@ -1,6 +1,7 @@
 ---
 name: frontend-engineer
 description: Delega a questo agente la creazione e modifica della UI, componenti React, Next.js, Tailwind CSS e l'integrazione delle API lato client.
+permissionMode: acceptEdits
 model: sonnet
 color: yellow
 ---
