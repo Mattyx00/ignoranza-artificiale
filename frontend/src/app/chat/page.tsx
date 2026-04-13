@@ -48,11 +48,17 @@ export default function ChatPage() {
           <div className="shrink-0 h-10 border-b border-[--border] flex items-center justify-between gap-2 px-3 sm:px-4">
             {/* Mobile: drawer button */}
             <button
-              className="lg:hidden text-[--text-muted] hover:text-[--text-primary] transition-colors shrink-0"
+              className="lg:hidden flex items-center gap-2 px-2 py-1.5 -ml-1 text-[--text-muted] hover:text-[--text-primary] transition-colors shrink-0 min-h-[44px]"
               onClick={() => setMobileDrawerOpen(true)}
               aria-label="Apri pannello agenti"
             >
-              <Menu size={16} />
+              <Menu size={20} />
+              <span className="font-mono text-xs uppercase tracking-[0.06em]">
+                Agenti
+                {enabledAgentSlugs.length > 0 && (
+                  <span className="ml-1 text-[--accent-red]">({enabledAgentSlugs.length})</span>
+                )}
+              </span>
             </button>
 
             {/* Active agent or status — hidden on very small screens when streaming to avoid overflow */}

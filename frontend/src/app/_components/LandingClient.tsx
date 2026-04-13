@@ -55,6 +55,12 @@ export default function LandingPage() {
             Accedi alla piattaforma
           </Button>
         </Link>
+
+        {/* Satire disclaimer — hero */}
+        <p className="mt-6 font-mono text-xs text-[--text-muted] max-w-sm leading-relaxed">
+          ⚠ Questo sito è satira. Gli agenti sono personaggi fittizi a scopo comico.
+          Nessun intento offensivo. Se ti sei offeso, il servizio ha funzionato correttamente.
+        </p>
       </div>
 
       {/* Bottom status bar — uses padding-bottom safe area for iPhone home indicator */}

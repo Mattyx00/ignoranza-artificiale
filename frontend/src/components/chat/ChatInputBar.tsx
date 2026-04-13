@@ -22,7 +22,7 @@ export default function ChatInputBar({ onSend, disabled }: ChatInputBarProps) {
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
         e.preventDefault()
         handleSend()
       }
@@ -58,14 +58,14 @@ export default function ChatInputBar({ onSend, disabled }: ChatInputBarProps) {
           onClick={handleSend}
           disabled={disabled || !value.trim()}
           aria-label="Invia messaggio"
-          className="shrink-0 gap-1.5 self-end min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0"
+          className="shrink-0 gap-1.5 self-stretch min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0"
         >
           <Send size={14} />
           <span className="hidden sm:inline">Invia</span>
         </Button>
       </div>
       <p className="text-[10px] font-mono text-[--text-muted] mt-1.5 ml-0.5 hidden sm:block">
-        Ctrl+Enter per inviare
+        Shift+Enter per andare a capo
       </p>
     </div>
   )
