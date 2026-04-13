@@ -154,4 +154,6 @@ jobs:
           token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
 
       - name: Trigger App Platform redeploy
-        run: doctl apps create-deployment ${{ secrets.DO_APP_ID }}
+        run: |
+          doctl apps create-deployment ${{ secrets.DO_APP_ID_BE }}
+          doctl apps create-deployment ${{ secrets.DO_APP_ID_FE }}
