@@ -20,6 +20,7 @@ interface AgentResponse {
   color_hex: string
   contributor_github: string
   contributor_name: string
+  contributor_linkedin?: string
   persona_summary: string
 }
 
@@ -32,6 +33,7 @@ function mapAgent(raw: AgentResponse): Agent {
     accentColor: raw.color_hex,
     contributorHandle: raw.contributor_github,
     contributorName: raw.contributor_name,
+    contributorLinkedin: raw.contributor_linkedin,
     isEnabled: true,
   }
 }

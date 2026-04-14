@@ -21,6 +21,8 @@ Gli utenti chattano con archetipi aziendali italiani distillati in agenti AI:
 |--------|------------|
 | **Il Consulente** | Inventa framework con acronimi, fattura €500/ora, non risolve nulla |
 | **Il CTO Visionario** | Blockchain, AI, quantum — se non è sulla copertina di Wired non esiste |
+| **Il Founder in Pre-Seed** | Pivota ogni settimana, vive di RedBull e term sheet immaginari |
+| **Il Guru del Personal Branding** | Post virali con una frase a paragrafo, emoji industriali, "E tu cosa ne pensi?" |
 | **Il PM Agile** | Cerimonie Scrum ogni ora, velocity chart come wallpaper |
 | **Il Recruiter** | "Siamo una famiglia", RAL competitiva mai specificata |
 | **Il Senior Boomer** | "Ai miei tempi si usava Cobol e funzionava" |
@@ -154,15 +156,20 @@ Crea un file YAML in `backend/agents/`:
 ```yaml
 slug: il-mio-agente
 name: Il Mio Agente
-tagline: "Frase iconica dell'agente"
-color: "#FF6B6B"
-author_github: tuo-handle
-system_prompt: |
+vibe_label: "Etichetta del vibe in italiano"
+color_hex: "#FF6B6B"
+contributor_name: Il Tuo Nome
+contributor_github: tuo-handle-github      # opzionale
+contributor_linkedin: tuo-handle-linkedin  # opzionale
+persona_summary: "Una riga di descrizione per le card UI."
+persona_description: |
   Sei [persona]. Il tuo obiettivo è [comportamento assurdo].
   Rispondi sempre in italiano con [quirk caratteristico].
 ```
 
 Riavvia il backend. L'agente appare automaticamente nel registry e nella UI. Nessuna migration, nessun deploy del DB.
+
+> I campi `contributor_github` e `contributor_linkedin` sono entrambi opzionali. Se presenti, compaiono come icone cliccabili nella card dell'agente.
 
 ---
 
@@ -172,7 +179,7 @@ Le PR sono aperte. Il flusso:
 
 1. Fork → branch → PR su `main`
 2. I test devono passare (`pytest` + `jest`)
-3. Se aggiungi un agente, includilo nel YAML con il tuo `author_github` — il tuo handle viene mostrato nella UI
+3. Se aggiungi un agente, includilo nel YAML con `contributor_github` e/o `contributor_linkedin` — le icone compaiono nella card UI
 
 ---
 

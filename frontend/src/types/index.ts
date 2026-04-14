@@ -4,8 +4,9 @@ export interface Agent {
   vibeLabel: string
   persona: string
   accentColor: string
-  contributorHandle: string
+  contributorHandle?: string
   contributorName: string
+  contributorLinkedin?: string
   isEnabled: boolean
 }
 

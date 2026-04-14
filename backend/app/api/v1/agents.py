@@ -32,6 +32,7 @@ async def list_agents() -> AgentsListResponse:
             vibe_label=agent.vibe_label,
             color_hex=agent.color_hex,
             contributor_github=agent.contributor_github,
+            contributor_linkedin=agent.contributor_linkedin,
             contributor_name=agent.contributor_name,
             persona_summary=agent.persona_summary,
         )
