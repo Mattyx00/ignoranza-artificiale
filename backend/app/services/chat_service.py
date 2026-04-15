@@ -180,7 +180,10 @@ def _build_memory(conversation_history: list[MessageItem]) -> Memory:
 
 
 async def _route_to_agent(
-    message: str, api_key: str, effective_agents: dict[str, AgentConfig]
+    message: str,
+    api_key: str,
+    effective_agents: dict[str, AgentConfig],
+    last_agent_slug: str | None = None,
 ) -> AgentConfig | None:
     """
     Call a fast non-streaming LLM to pick the best agent slug for this message.
@@ -192,9 +195,18 @@ async def _route_to_agent(
         return None
 
     agents_list = "\n".join(
-        f"- {slug}: {agent.name} ({agent.vibe_label})" for slug, agent in effective_agents.items()
+        f"- {slug}: {agent.name} ({agent.vibe_label}) — {agent.persona_summary}"
+        for slug, agent in effective_agents.items()
     )
-    routing_prompt = _MASTER_ROUTING_SYSTEM_PROMPT.format(agents_list=agents_list)
+    continuity_hint = (
+        f"\nL'utente stava già conversando con l'agente: {last_agent_slug}. "
+        "Preferisci cambiare agente se il messaggio si adatta meglio a un altro — "
+        "la varietà è più comica della continuità. "
+        "Tieni lo stesso agente solo se il messaggio non suggerisce chiaramente un'alternativa migliore."
+        if last_agent_slug
+        else ""
+    )
+    routing_prompt = _MASTER_ROUTING_SYSTEM_PROMPT.format(agents_list=agents_list) + continuity_hint
 
     client = OpenAILikeClient(
         api_key=api_key,
@@ -271,6 +283,10 @@ async def stream_chat_response(
     # ------------------------------------------------------------------
     # Step 1: Resolve agent
     # ------------------------------------------------------------------
+    # Pre-load Redis history once here so it can be reused at Step 5, avoiding
+    # a second round-trip. Also used to extract the last agent slug for routing hint.
+    redis_history = await load_history_from_redis(session_id, redis)
+
     if agent_slug is not None:
         agent = effective_agents.get(agent_slug)
         if agent is None:
@@ -281,8 +297,13 @@ async def stream_chat_response(
             )
             return
     else:
+        # Extract the last agent the user was talking to as a continuity hint.
+        last_agent_slug: str | None = next(
+            (entry["agent_slug"] for entry in reversed(redis_history) if "agent_slug" in entry),
+            None,
+        )
         # Master Agent routing
-        agent = await _route_to_agent(message, api_key, effective_agents)
+        agent = await _route_to_agent(message, api_key, effective_agents, last_agent_slug=last_agent_slug)
         if agent is None:
             agent = _random_agent(effective_agents)
             logger.info("Fallback random: agente '%s' selezionato.", agent.slug)
@@ -352,9 +373,9 @@ async def stream_chat_response(
     yield _sse_done(resolved_conversation_id, token_count)
 
     # Persist asynchronously — best-effort; don't let storage errors propagate.
+    # redis_history was already loaded at Step 1 — no second Redis round-trip needed.
     full_response = "".join(full_response_parts)
     try:
-        redis_history = await load_history_from_redis(session_id, redis)
         await save_history_to_redis(
             session_id=session_id,
             redis=redis,
