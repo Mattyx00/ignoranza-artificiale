@@ -9,14 +9,36 @@
  *
  * Streaming responses (SSE for LLM output) are forwarded transparently by
  * piping the response body directly.
+ *
+ * Security:
+ * - Only an explicit allowlist of headers is forwarded to the backend.
+ *   Cookie, authorization, x-forwarded-*, x-real-ip, host, referer and origin
+ *   are intentionally excluded to prevent header injection / IP spoofing.
+ * - Path segments are validated to block path traversal attempts
+ *   (e.g. "..", "%2e%2e", "%2f", "%5c") before any upstream request is made.
  */
 
 import { type NextRequest } from 'next/server'
 
 const BACKEND = process.env.API_INTERNAL_URL ?? 'http://localhost:8000'
 
-// Headers that must not be forwarded upstream (hop-by-hop or Next.js internals)
-const HOP_BY_HOP = new Set([
+/**
+ * Allowlist of request headers that are safe to forward to the backend.
+ * All keys must be lowercase.
+ */
+const ALLOWED_REQUEST_HEADERS = new Set([
+  'content-type',
+  'accept',
+  'accept-encoding',
+  'accept-language',
+  'user-agent',
+  'x-session-id', // custom app header used for rate-limiting
+])
+
+/**
+ * Headers that must not be forwarded from the upstream response (hop-by-hop).
+ */
+const HOP_BY_HOP_RESPONSE = new Set([
   'connection',
   'keep-alive',
   'proxy-authenticate',
@@ -25,20 +47,56 @@ const HOP_BY_HOP = new Set([
   'trailer',
   'transfer-encoding',
   'upgrade',
-  'host',
 ])
 
-function forwardHeaders(source: Headers): Headers {
+/**
+ * Builds a safe header set to forward to the backend by applying the allowlist.
+ */
+function buildRequestHeaders(source: Headers): Headers {
   const out = new Headers()
   source.forEach((value, key) => {
-    if (!HOP_BY_HOP.has(key.toLowerCase())) {
+    if (ALLOWED_REQUEST_HEADERS.has(key.toLowerCase())) {
       out.set(key, value)
     }
   })
   return out
 }
 
+/**
+ * Strips hop-by-hop headers from the upstream response before returning it
+ * to the client.
+ */
+function buildResponseHeaders(source: Headers): Headers {
+  const out = new Headers()
+  source.forEach((value, key) => {
+    if (!HOP_BY_HOP_RESPONSE.has(key.toLowerCase())) {
+      out.set(key, value)
+    }
+  })
+  return out
+}
+
+/**
+ * Validates that none of the path segments contain traversal sequences.
+ * Returns false if any segment is empty or contains "..", "/", "\",
+ * "%2e" (encoded dot), "%2f" (encoded slash), or "%5c" (encoded backslash).
+ */
+function validatePathSegments(segments: string[]): boolean {
+  if (segments.length === 0) return false
+  const dangerous = /(\.\.|\/|\\|%2e|%2f|%5c)/i
+  for (const segment of segments) {
+    if (segment === '' || dangerous.test(segment)) {
+      return false
+    }
+  }
+  return true
+}
+
 async function proxy(req: NextRequest, path: string[]): Promise<Response> {
+  if (!validatePathSegments(path)) {
+    return new Response('Bad Request', { status: 400 })
+  }
+
   const segment = path.join('/')
   const target = new URL(`${BACKEND}/api/v1/${segment}`)
   // Forward query string
@@ -46,7 +104,7 @@ async function proxy(req: NextRequest, path: string[]): Promise<Response> {
 
   const upstreamRes = await fetch(target, {
     method: req.method,
-    headers: forwardHeaders(req.headers),
+    headers: buildRequestHeaders(req.headers),
     body: ['GET', 'HEAD'].includes(req.method) ? undefined : req.body,
     // Required for streaming request bodies (e.g. POST with ReadableStream)
     // @ts-expect-error — Node 18+ fetch supports this flag
@@ -56,7 +114,7 @@ async function proxy(req: NextRequest, path: string[]): Promise<Response> {
   // Stream the response body back; works for both JSON and SSE
   return new Response(upstreamRes.body, {
     status: upstreamRes.status,
-    headers: forwardHeaders(upstreamRes.headers),
+    headers: buildResponseHeaders(upstreamRes.headers),
   })
 }
 
