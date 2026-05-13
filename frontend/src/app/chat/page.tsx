@@ -15,7 +15,7 @@ export default function ChatPage() {
   const { messages, isStreaming, activeAgentSlug, activeAgentName, error, conversationId, sendMessage, resetSession } =
     useChat({ enabledAgentSlugs })
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
-  const [_shameSlug, setShameSlug] = useState<string | null>(null)
+  const [, setShameSlug] = useState<string | null>(null)
 
   const activeAgent = agents.find((a) => a.slug === activeAgentSlug)
 

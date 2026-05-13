@@ -122,7 +122,8 @@ export function useChat(options: UseChatOptions): UseChatReturn {
           },
           body: JSON.stringify({
             message: text.trim(),
-            agent_slug: options.enabledAgentSlugs.length > 0 ? null : null,
+            // FIXME: agent_slug is always null — determine intent (forced single-agent selection?) before implementing
+            agent_slug: null,
             enabled_agent_slugs: options.enabledAgentSlugs,
             conversation_history: conversationHistory,
           }),
