@@ -354,12 +354,17 @@ async def stream_chat_response(
         )
         return
     except Exception as exc:
+        # Do NOT use exc_info=True here: the SDK exception chain may include the
+        # full HTTP request object with an Authorization header containing the
+        # OpenRouter API key.  Log only the sanitized type and a truncated message.
         logger.error(
-            "Errore upstream LLM per agent='%s' session='%s': %s",
-            agent.slug,
-            session_id,
-            exc,
-            exc_info=True,
+            "OpenRouter call failed",
+            extra={
+                "error_type": type(exc).__name__,
+                "error_msg": str(exc)[:500],
+                "agent_slug": agent.slug,
+                "session_id": session_id,
+            },
         )
         yield _sse_error(
             "UPSTREAM_LLM_ERROR",
