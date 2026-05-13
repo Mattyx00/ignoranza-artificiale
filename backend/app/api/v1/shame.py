@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.agent_registry import AGENTS
 from app.core.dependencies import get_db, get_redis, get_session_id
+from app.core.security import get_client_ip
 from app.repositories.shame_repository import ShameRepository
 from app.repositories.upvote_repository import UpvoteRepository
 from app.schemas.shame import (
@@ -175,7 +176,12 @@ async def submit_shame_entry(
     redis: Annotated[aioredis.Redis, Depends(get_redis)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> ShameSubmitResponse:
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = get_client_ip(request)
+    if client_ip is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unable to determine client IP",
+        )
     await rate_limiter.check_rate_limit(
         session_id=session_id,
         client_ip=client_ip,
@@ -298,7 +304,12 @@ async def upvote_shame_entry(
     redis: Annotated[aioredis.Redis, Depends(get_redis)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> UpvoteResponse:
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = get_client_ip(request)
+    if client_ip is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unable to determine client IP",
+        )
     await rate_limiter.check_rate_limit(
         session_id=session_id,
         client_ip=client_ip,
