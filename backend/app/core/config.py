@@ -33,6 +33,13 @@ class Settings(BaseSettings):
     # Set DOCS_ENABLED=true only in development environments.
     DOCS_ENABLED: bool = False
 
+    # Reverse-proxy trust — controls whether X-Forwarded-For is honoured.
+    # Set TRUST_PROXY=true ONLY when the application sits behind a trusted reverse
+    # proxy (Nginx, Traefik, AWS ALB, DO Load Balancer) that is the sole public
+    # entry point AND that proxy overwrites/strips client-supplied XFF headers.
+    # Leaving this false prevents rate-limit bypass via header spoofing.
+    TRUST_PROXY: bool = False
+
     # Rate limiting — sliding window thresholds applied server-wide (no BYOK).
     RATE_LIMIT_REQUESTS: int = 20
     RATE_LIMIT_WINDOW_SECONDS: int = 60

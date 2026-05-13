@@ -1,12 +1,14 @@
 """
 Security utilities for the FastAPI application.
 
-get_client_ip — resolves the real client IP from a request, honouring the
-                X-Forwarded-For header set by reverse proxies before falling
-                back to the direct connection address.
+get_client_ip — resolves the real client IP from a request.  X-Forwarded-For
+                is only honoured when the TRUST_PROXY setting is True, preventing
+                rate-limit bypass via header spoofing on direct-connection deployments.
 """
 
 from starlette.requests import Request
+
+from app.core.config import settings
 
 
 def get_client_ip(request: Request) -> str | None:
@@ -14,12 +16,14 @@ def get_client_ip(request: Request) -> str | None:
     Resolve the originating client IP address from a FastAPI/Starlette Request.
 
     Resolution order:
-    1. ``X-Forwarded-For`` header — set by reverse proxies (Nginx, Traefik, AWS
-       ALB, etc.).  Only the *first* address in the comma-separated list is used,
+    1. ``X-Forwarded-For`` header — honoured ONLY when ``settings.TRUST_PROXY``
+       is ``True``.  Only the *first* address in the comma-separated list is used,
        as it represents the original client IP before any intermediate hops.
-       NOTE: This header can be spoofed when the application is accessed directly
-       (without a trusted proxy).  Ensure the proxy is the sole public entry
-       point and strips or overwrites client-supplied XFF headers.
+       Set TRUST_PROXY=true only when a trusted reverse proxy (Nginx, Traefik,
+       AWS ALB, DO Load Balancer) is the sole public entry point AND it
+       overwrites/strips client-supplied XFF headers.  When TRUST_PROXY is False
+       (the default) this header is ignored entirely to prevent rate-limit bypass
+       via spoofed XFF values.
     2. ``request.client.host`` — the TCP-level peer address provided by the ASGI
        server.  Present for direct connections; may be ``None`` behind Unix-socket
        proxies or in certain test environments.
@@ -33,11 +37,12 @@ def get_client_ip(request: Request) -> str | None:
     Returns:
         A non-empty IP address string, or ``None`` if unresolvable.
     """
-    xff: str | None = request.headers.get("X-Forwarded-For")
-    if xff:
-        first_ip = xff.split(",")[0].strip()
-        if first_ip:
-            return first_ip
+    if settings.TRUST_PROXY:
+        xff: str | None = request.headers.get("X-Forwarded-For")
+        if xff:
+            first_ip = xff.split(",")[0].strip()
+            if first_ip:
+                return first_ip
 
     if request.client is not None and request.client.host:
         return request.client.host
