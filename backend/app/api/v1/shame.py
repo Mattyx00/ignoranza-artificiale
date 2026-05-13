@@ -44,16 +44,22 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/shame", tags=["shame"])
 
-_SLUG_PATTERN = r"^[a-z0-9]+(-[a-z0-9]+)*-[0-9a-f]{4}$"
+_SLUG_PATTERN = r"^[a-z0-9]+(-[a-z0-9]+)*-[A-Za-z0-9_-]{11}$"
 
 # Upvote Redis key TTL: 90 days in seconds.
 _UPVOTE_TTL_SECONDS = 90 * 24 * 3600
 
 
 def _generate_slug(title: str) -> str:
-    """Generate a URL-safe slug from a title with a 4-char random hex suffix."""
+    """Generate a URL-safe slug from a title with an 11-char random suffix.
+
+    Uses ``secrets.token_urlsafe(8)`` which yields ~48 bits of entropy encoded
+    as 11 URL-safe base64 characters (A-Za-z0-9_-), making the slug space
+    infeasible to enumerate by brute-force (vs the previous token_hex(2) which
+    only covered ~65 k values).
+    """
     base = slugify(title, max_length=100, separator="-", lowercase=True)
-    suffix = secrets.token_hex(2)  # 2 bytes = 4 hex chars
+    suffix = secrets.token_urlsafe(8)  # 8 bytes → 11 URL-safe base64 chars (~48 bits)
     return f"{base}-{suffix}"
 
 

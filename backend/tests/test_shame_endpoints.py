@@ -106,7 +106,7 @@ async def test_shame_list_agent_slug_filter(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_shame_get_by_slug_not_found(client: AsyncClient):
     """Test getting non-existent shame entry returns 404."""
-    response = await client.get("/api/v1/shame/nonexistent-slug-abcd")
+    response = await client.get("/api/v1/shame/nonexistent-slug-AAAAAAAAAAA")
     assert response.status_code == 404
     data = response.json()
     assert data["detail"]["code"] == "ENTRY_NOT_FOUND"
@@ -166,7 +166,7 @@ async def test_shame_submit_missing_fields_returns_422(client: AsyncClient):
 async def test_shame_upvote_missing_session_id_returns_400(client: AsyncClient):
     """Test upvoting without session ID returns 400."""
     response = await client.post(
-        "/api/v1/shame/test-slug-abcd/upvote",
+        "/api/v1/shame/test-slug-AAAAAAAAAAA/upvote",
         headers={},  # No X-Session-ID
     )
     assert response.status_code == 400
@@ -186,7 +186,7 @@ async def test_shame_upvote_invalid_slug_returns_422(client: AsyncClient):
 async def test_shame_upvote_nonexistent_returns_404(client: AsyncClient):
     """Test upvoting non-existent entry returns 404."""
     response = await client.post(
-        "/api/v1/shame/nonexistent-slug-abcd/upvote",
+        "/api/v1/shame/nonexistent-slug-AAAAAAAAAAA/upvote",
         headers={"X-Session-ID": "valid-session"},
     )
     assert response.status_code == 404
