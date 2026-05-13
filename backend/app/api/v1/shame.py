@@ -9,7 +9,6 @@ Hall of Shame endpoints:
 import logging
 import math
 import secrets
-import uuid
 from typing import Annotated, Literal
 
 import redis.asyncio as aioredis
@@ -30,7 +29,6 @@ from app.schemas.shame import (
     ShameEntryDetail,
     ShameListResponse,
     ShameSubmitResponse,
-    TranscriptMessage,
 )
 from app.schemas.upvotes import UpvoteResponse
 from app.services.rate_limiter import rate_limiter
@@ -280,7 +278,6 @@ async def submit_shame_entry(
 
     # FastAPI uses the route-level status_code for all responses from this handler.
     # To return 200 on update vs 201 on insert we use a Response object trick.
-    from fastapi import Response as FastAPIResponse
     from fastapi.responses import JSONResponse
 
     if not is_new:

@@ -30,7 +30,7 @@ from datapizza.clients.openai_like import OpenAILikeClient
 from datapizza.memory import Memory
 from datapizza.type import ROLE, TextBlock
 
-from app.core.agent_registry import AGENTS, AgentConfig
+from app.core.agent_registry import AgentConfig
 from app.schemas.chat import MessageItem
 
 if TYPE_CHECKING:
