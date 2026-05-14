@@ -1,88 +1,72 @@
-# Dependabot configuration — opens PRs automatically when CVEs are published
-# against pinned dependencies. This is the single most important defense
-# against "I had a critical CVE active for weeks without knowing".
+# Dependabot configuration — SECURITY-ONLY mode.
 #
-# Cadence: daily for security updates (default), weekly for non-security to
-# avoid PR noise. Manual merging required — Dependabot does NOT auto-merge.
+# Version updates (= "there is a newer release of X") are DISABLED via
+# `open-pull-requests-limit: 0` on every ecosystem. Dependabot will NOT open
+# noisy "bump foo from 1.2.3 to 1.2.4" PRs.
+#
+# Security updates (= "X has a published CVE, here is the patch") are NOT
+# controlled by this file. They are enabled separately at:
+#   Repo Settings → Code security → Dependabot → "Dependabot security updates"
+# Keep that toggle ON. Those PRs will continue to arrive — they are the only
+# automated PRs you actually want.
+#
+# Why list every ecosystem here at all if everything is disabled?
+# Because Dependabot only scans ecosystems declared in this file when it
+# decides where to apply security updates. Listing them with limit=0 means:
+# "scan here, alert on CVEs, but do not open routine version-bump PRs".
+#
+# Manual audit cadence (recommended): weekly, takes ~5 minutes.
+#   cd frontend && pnpm audit --prod --audit-level=high
+#   cd backend  && uv run pip-audit
 
 version: 2
 updates:
-  # Frontend — pnpm / npm ecosystem
+  # Frontend — npm
   - package-ecosystem: "npm"
     directory: "/frontend"
     schedule:
       interval: "weekly"
-      day: "monday"
-      time: "08:00"
-      timezone: "Europe/Rome"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 0  # Disable version-update PRs (security PRs unaffected)
     labels:
       - "dependencies"
       - "frontend"
-    commit-message:
-      prefix: "deps(frontend)"
-      include: "scope"
-    groups:
-      # Group minor/patch bumps to reduce PR noise; security PRs come separately.
-      minor-and-patch:
-        update-types:
-          - "minor"
-          - "patch"
 
-  # Backend — Python / uv (pip ecosystem reads pyproject.toml + uv.lock)
+  # Backend — pip (reads pyproject.toml + uv.lock)
   - package-ecosystem: "pip"
     directory: "/backend"
     schedule:
       interval: "weekly"
-      day: "monday"
-      time: "08:00"
-      timezone: "Europe/Rome"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 0
     labels:
       - "dependencies"
       - "backend"
-    commit-message:
-      prefix: "deps(backend)"
-      include: "scope"
-    groups:
-      minor-and-patch:
-        update-types:
-          - "minor"
-          - "patch"
 
-  # GitHub Actions — keeps action versions current (e.g. checkout@v4 → v5)
+  # GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
-      time: "08:00"
-      timezone: "Europe/Rome"
+    open-pull-requests-limit: 0
     labels:
       - "dependencies"
       - "ci"
-    commit-message:
-      prefix: "deps(ci)"
 
-  # Docker base images — flags new digests when CVE-fixed
+  # Docker base images (backend)
   - package-ecosystem: "docker"
     directory: "/backend"
     schedule:
       interval: "weekly"
-      day: "monday"
+    open-pull-requests-limit: 0
     labels:
       - "dependencies"
       - "docker"
-    commit-message:
-      prefix: "deps(docker-be)"
 
+  # Docker base images (frontend)
   - package-ecosystem: "docker"
     directory: "/frontend"
     schedule:
       interval: "weekly"
-      day: "monday"
+    open-pull-requests-limit: 0
     labels:
       - "dependencies"
       - "docker"
-    commit-message:
-      prefix: "deps(docker-fe)"
