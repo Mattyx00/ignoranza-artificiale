@@ -1,0 +1,88 @@
+# Dependabot configuration — opens PRs automatically when CVEs are published
+# against pinned dependencies. This is the single most important defense
+# against "I had a critical CVE active for weeks without knowing".
+#
+# Cadence: daily for security updates (default), weekly for non-security to
+# avoid PR noise. Manual merging required — Dependabot does NOT auto-merge.
+
+version: 2
+updates:
+  # Frontend — pnpm / npm ecosystem
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "Europe/Rome"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "frontend"
+    commit-message:
+      prefix: "deps(frontend)"
+      include: "scope"
+    groups:
+      # Group minor/patch bumps to reduce PR noise; security PRs come separately.
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Backend — Python / uv (pip ecosystem reads pyproject.toml + uv.lock)
+  - package-ecosystem: "pip"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "Europe/Rome"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "backend"
+    commit-message:
+      prefix: "deps(backend)"
+      include: "scope"
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions — keeps action versions current (e.g. checkout@v4 → v5)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "Europe/Rome"
+    labels:
+      - "dependencies"
+      - "ci"
+    commit-message:
+      prefix: "deps(ci)"
+
+  # Docker base images — flags new digests when CVE-fixed
+  - package-ecosystem: "docker"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "deps(docker-be)"
+
+  - package-ecosystem: "docker"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "deps(docker-fe)"

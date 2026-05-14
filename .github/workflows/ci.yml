@@ -1,4 +1,10 @@
-name: CI & Deploy
+name: CI
+
+# Deploy is handled by DigitalOcean's Native GitHub Integration (see .do/app.yaml).
+# DO clones the repo on push to `main` and builds both Dockerfiles in its own
+# runners — no DO API tokens, no GHCR push, no doctl in CI.
+# This workflow only runs tests, type-checks, and security audits as a gate
+# before merging into `main`.
 
 on:
   push:
@@ -102,58 +108,5 @@ jobs:
       - name: Type check
         run: cd frontend && pnpm tsc --noEmit
 
-  deploy:
-    runs-on: ubuntu-latest
-    needs: [backend-tests, frontend-tests]
-    # Only deploy on push to main, not on pull requests
-    if: github.event_name == 'push'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set lowercase owner
-        run: echo "OWNER=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build backend image
-        run: |
-          docker build \
-            -f backend/Dockerfile \
-            -t ghcr.io/${{ env.OWNER }}/ignoranza-be:latest \
-            -t ghcr.io/${{ env.OWNER }}/ignoranza-be:${{ github.sha }} \
-            ./backend
-
-      - name: Build frontend image
-        run: |
-          docker build \
-            -f frontend/Dockerfile \
-            -t ghcr.io/${{ env.OWNER }}/ignoranza-fe:latest \
-            -t ghcr.io/${{ env.OWNER }}/ignoranza-fe:${{ github.sha }} \
-            ./frontend
-
-      - name: Push backend image
-        run: |
-          docker push ghcr.io/${{ env.OWNER }}/ignoranza-be:latest
-          docker push ghcr.io/${{ env.OWNER }}/ignoranza-be:${{ github.sha }}
-
-      - name: Push frontend image
-        run: |
-          docker push ghcr.io/${{ env.OWNER }}/ignoranza-fe:latest
-          docker push ghcr.io/${{ env.OWNER }}/ignoranza-fe:${{ github.sha }}
-
-      - name: Install doctl
-        uses: digitalocean/action-doctl@v2
-        with:
-          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
-
-      - name: Trigger App Platform redeploy
-        run: |
-          doctl apps create-deployment ${{ secrets.DO_APP_ID_BE }}
-          doctl apps create-deployment ${{ secrets.DO_APP_ID_FE }}
+      - name: Security audit (npm)
+        run: cd frontend && pnpm audit --prod --audit-level=high

@@ -1,0 +1,108 @@
+# DigitalOcean App Platform spec for "Ignoranza Artificiale"
+#
+# Deploy model: Native GitHub Integration (NO API tokens, NO doctl, NO GHCR push)
+# DO clones the repo on push to `main`, builds both Dockerfiles in its own
+# build runners, and rolls out a new revision. The only credential involved is
+# the OAuth grant of the DigitalOcean GitHub App, which is read-only on code.
+#
+# Topology:
+#   - backend  → internal-only (no public route), reachable by frontend via
+#                http://backend.private.ondigitalocean.app:8000 (DO injects
+#                ${backend.PRIVATE_DOMAIN} at runtime)
+#   - frontend → public, serves all traffic at the app's public URL
+#
+# Secrets (OPENROUTER_API_KEY, DATABASE_URL, REDIS_URL) are NOT declared here.
+# Set them via the App Platform UI under "Settings → App-Level Environment
+# Variables" with type=SECRET. This keeps the spec safe to commit.
+
+name: ignoranza-artificiale
+region: fra  # Frankfurt — closest DO region to Italy. Change if needed.
+
+# ---------------------------------------------------------------------------
+# BACKEND — FastAPI, internal-only
+# ---------------------------------------------------------------------------
+services:
+  - name: backend
+    dockerfile_path: backend/Dockerfile
+    source_dir: backend
+    github:
+      repo: Mattyx00/ignoranza-artificiale
+      branch: main
+      deploy_on_push: true
+    instance_size_slug: basic-xxs  # 0.5 vCPU, 512MB RAM, $5/mo
+    instance_count: 1
+    http_port: 8000
+    # NO `routes:` block → component is INTERNAL only, not reachable from public Internet
+    health_check:
+      http_path: /api/v1/health
+      initial_delay_seconds: 20
+      period_seconds: 10
+      timeout_seconds: 5
+      failure_threshold: 3
+      success_threshold: 1
+    envs:
+      # --- Non-secret config (committed) ---
+      - key: HTTPS_ENABLED
+        scope: RUN_TIME
+        value: "true"
+      - key: TRUST_PROXY
+        scope: RUN_TIME
+        value: "true"  # DO LB sits in front and sets X-Forwarded-For
+      - key: DOCS_ENABLED
+        scope: RUN_TIME
+        value: "false"
+      - key: DB_SSL_REQUIRE
+        scope: RUN_TIME
+        value: "true"  # Required for Neon Postgres
+      - key: CORS_ORIGINS
+        scope: RUN_TIME
+        value: '["${APP_URL}"]'  # DO substitutes the public app URL
+      - key: ALLOWED_HOSTS
+        scope: RUN_TIME
+        value: "${APP_DOMAIN}"  # DO substitutes the public app hostname
+      # --- Secrets — set via UI, NOT here ---
+      # - DATABASE_URL    (Neon, postgresql+asyncpg://... WITHOUT ?sslmode=require)
+      # - REDIS_URL       (Upstash, rediss://default:PASSWORD@...upstash.io:6379/0)
+      # - OPENROUTER_API_KEY  (the rotated key)
+
+# ---------------------------------------------------------------------------
+# FRONTEND — Next.js, public
+# ---------------------------------------------------------------------------
+  - name: frontend
+    dockerfile_path: frontend/Dockerfile
+    source_dir: frontend
+    github:
+      repo: Mattyx00/ignoranza-artificiale
+      branch: main
+      deploy_on_push: true
+    instance_size_slug: basic-xxs  # 0.5 vCPU, 512MB RAM, $5/mo
+    instance_count: 1
+    http_port: 3000
+    routes:
+      - path: /  # Catches all public traffic
+    health_check:
+      http_path: /
+      initial_delay_seconds: 30
+      period_seconds: 10
+      timeout_seconds: 5
+      failure_threshold: 3
+      success_threshold: 1
+    envs:
+      # Frontend talks to backend over the DO private network — no Internet hop.
+      # ${backend.PRIVATE_DOMAIN} is substituted at runtime by App Platform.
+      - key: API_INTERNAL_URL
+        scope: RUN_TIME
+        value: "http://${backend.PRIVATE_DOMAIN}:8000"
+      # NEXT_PUBLIC_API_URL stays empty: the browser only talks to /api/v1/* on
+      # this same origin, which the Next.js proxy forwards server-side.
+      - key: NEXT_PUBLIC_API_URL
+        scope: BUILD_TIME
+        value: ""
+
+# ---------------------------------------------------------------------------
+# ALERTS — wake you up if something goes sideways
+# ---------------------------------------------------------------------------
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DEPLOYMENT_LIVE
+  - rule: DOMAIN_FAILED
