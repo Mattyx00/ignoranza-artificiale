@@ -3,7 +3,7 @@
 # Install Python dependencies with uv into an isolated virtual environment.
 # uv, pyproject.toml, and uv.lock are NOT copied to the final image.
 # ---------------------------------------------------------------------------
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 
 WORKDIR /build
 
@@ -21,7 +21,7 @@ RUN uv sync --frozen --no-dev
 # Minimal image: only the virtualenv and application source code.
 # No uv, no pyproject.toml, no uv.lock, no build toolchain.
 # ---------------------------------------------------------------------------
-FROM python:3.12-slim AS runner
+FROM python:3.14-slim AS runner
 
 WORKDIR /app
 
