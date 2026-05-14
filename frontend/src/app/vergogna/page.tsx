@@ -1,6 +1,9 @@
 import type { Metadata } from 'next'
 import { fetchShameEntries } from '@/lib/api.server'
+import type { ShameEntriesResult } from '@/lib/api.server'
+import type { ShameEntry } from '@/types'
 import ShameGallery from '@/components/shame/ShameGallery'
+import { SHAME_PAGE_SIZE } from '@/lib/constants'
 import Navbar from '@/components/layout/Navbar'
 
 export const metadata: Metadata = {
@@ -8,13 +11,18 @@ export const metadata: Metadata = {
   description: 'Archivio Pubblico delle Disfunzioni Artificiali.',
 }
 
+const EMPTY_RESULT: ShameEntriesResult = {
+  entries: [] as ShameEntry[],
+  pagination: { page: 1, page_size: 0, total_entries: 0, total_pages: 1 },
+}
+
 export default async function VergognaPage() {
-  let entries: import('@/types').ShameEntry[] = []
-  try {
-    entries = await fetchShameEntries()
-  } catch {
-    entries = []
-  }
+  const [topResult, latestResult] = await Promise.all([
+    fetchShameEntries({ sort: 'top', page: 1, page_size: 3 }).catch(() => EMPTY_RESULT),
+    fetchShameEntries({ sort: 'newest', page: 1, page_size: SHAME_PAGE_SIZE }).catch(
+      () => EMPTY_RESULT,
+    ),
+  ])
 
   return (
     <div className="min-h-screen bg-[--background]">
@@ -31,7 +39,11 @@ export default async function VergognaPage() {
         </div>
 
         <div className="px-0">
-          <ShameGallery entries={entries} />
+          <ShameGallery
+            topEntries={topResult.entries}
+            latestEntries={latestResult.entries}
+            latestPagination={latestResult.pagination}
+          />
         </div>
       </div>
     </div>
