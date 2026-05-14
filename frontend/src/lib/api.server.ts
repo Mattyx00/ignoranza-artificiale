@@ -85,8 +85,36 @@ export async function fetchAgents(): Promise<Agent[]> {
   return data.agents.map(mapAgent)
 }
 
-export async function fetchShameEntries(): Promise<ShameEntry[]> {
-  const url = `${API_INTERNAL_URL}/api/v1/shame`
+export interface PaginationMeta {
+  page: number
+  page_size: number
+  total_entries: number
+  total_pages: number
+}
+
+export interface ShameEntriesResult {
+  entries: ShameEntry[]
+  pagination: PaginationMeta
+}
+
+interface ShameEntriesResponse {
+  entries: ShameEntryResponse[]
+  pagination: PaginationMeta
+}
+
+export async function fetchShameEntries(params?: {
+  sort?: 'newest' | 'top'
+  page?: number
+  page_size?: number
+}): Promise<ShameEntriesResult> {
+  const searchParams = new URLSearchParams()
+  if (params?.sort) searchParams.set('sort', params.sort)
+  if (params?.page !== undefined) searchParams.set('page', String(params.page))
+  if (params?.page_size !== undefined) searchParams.set('page_size', String(params.page_size))
+
+  const query = searchParams.toString()
+  const url = `${API_INTERNAL_URL}/api/v1/shame${query ? `?${query}` : ''}`
+
   const res = await fetch(url, {
     headers: { 'Content-Type': 'application/json' },
     cache: 'no-store',
@@ -94,8 +122,11 @@ export async function fetchShameEntries(): Promise<ShameEntry[]> {
   if (!res.ok) {
     throw new Error(`fetchShameEntries failed: ${res.status}`)
   }
-  const data = await res.json() as { entries: ShameEntryResponse[] }
-  return data.entries.map(mapShameEntry)
+  const data = await res.json() as ShameEntriesResponse
+  return {
+    entries: data.entries.map(mapShameEntry),
+    pagination: data.pagination,
+  }
 }
 
 export async function fetchShameTranscript(slug: string): Promise<ShameTranscriptEntry> {

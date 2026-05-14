@@ -6,3 +6,4 @@ export const API_INTERNAL_URL = process.env.API_INTERNAL_URL ?? 'http://localhos
 export const LOCALSTORAGE_SESSION_ID = 'session_id'
 export const LOCALSTORAGE_VOTED_PREFIX = 'voted:'
 export const MIN_MESSAGES_FOR_SHAME = 2
+export const SHAME_PAGE_SIZE = 10
