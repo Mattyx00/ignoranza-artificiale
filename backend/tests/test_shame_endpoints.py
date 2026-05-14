@@ -120,6 +120,16 @@ async def test_shame_get_by_slug_invalid_format(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_shame_get_by_slug_legacy_4char_hex_suffix_accepted(client: AsyncClient):
+    """Legacy slugs (token_hex(2), 4-char hex suffix) must still pass path
+    validation. Public URLs shared before the entropy bump rely on this."""
+    response = await client.get("/api/v1/shame/some-legacy-title-1b3c")
+    # 404 (entry not in DB) is the expected outcome — what matters is that
+    # we did NOT get a 422 from FastAPI's path regex.
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_shame_submit_missing_session_id_returns_400(client: AsyncClient):
     """Test submitting shame without session ID returns 400."""
     response = await client.post(

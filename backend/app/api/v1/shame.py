@@ -42,7 +42,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/shame", tags=["shame"])
 
-_SLUG_PATTERN = r"^[a-z0-9]+(-[a-z0-9]+)*-[A-Za-z0-9_-]{11}$"
+# Accepts both legacy (4-char hex, token_hex(2)) and current (11-char URL-safe
+# base64, token_urlsafe(8)) suffixes. Legacy form is preserved for backward
+# compatibility with public URLs shared before slug entropy was increased.
+_SLUG_PATTERN = r"^[a-z0-9]+(-[a-z0-9]+)*-([0-9a-f]{4}|[A-Za-z0-9_-]{11})$"
 
 # Upvote Redis key TTL: 90 days in seconds.
 _UPVOTE_TTL_SECONDS = 90 * 24 * 3600
