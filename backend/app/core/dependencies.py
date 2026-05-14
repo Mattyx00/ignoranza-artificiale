@@ -42,9 +42,18 @@ if "sqlite" not in settings.DATABASE_URL.lower():
 
 # asyncpg does not honour ?sslmode=require as a URL query parameter.
 # The correct approach is to pass ssl=True via connect_args when the host
-# requires TLS (e.g. DigitalOcean Managed Postgres on port 25060).
+# requires TLS (e.g. DigitalOcean Managed Postgres, Neon, Supabase).
+# We also disable asyncpg's prepared-statement cache because all the managed
+# Postgres providers above place a connection pooler (pgBouncer in transaction
+# mode) in front of the database. In that mode, client-cached prepared
+# statements are invalidated on every connection swap, producing intermittent
+# `InvalidSQLStatementNameError: prepared statement "__asyncpg_stmt_X__" does
+# not exist` errors. statement_cache_size=0 disables the cache entirely.
 if settings.DB_SSL_REQUIRE:
-    _engine_kwargs["connect_args"] = {"ssl": True}
+    _engine_kwargs["connect_args"] = {
+        "ssl": True,
+        "statement_cache_size": 0,
+    }
 
 _engine = create_async_engine(
     settings.DATABASE_URL,
