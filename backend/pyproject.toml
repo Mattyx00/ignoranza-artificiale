@@ -14,7 +14,7 @@ dependencies = [
     "python-slugify>=8.0.0",
     "pyyaml>=6.0.2",
     "httpx>=0.28.0",
-    "datapizza-ai>=0.0.1",
+    "datapizza-ai>=0.1.0",
     "datapizza-ai-clients-openai-like>=0.0.1",
 ]
 
